@@ -61,14 +61,15 @@ export function ceraTotalLote(pesoVela, piezas, mermaPct) {
   return pesoVela * piezas * (1 + mermaPct / 100)
 }
 
-// Minutos totales de producción de un modelo (suma de etapas, para lote de 50)
+// Minutos totales de producción de un modelo (suma de etapas, para su lote base)
 export function minutosLote50(modelo) {
   return (modelo?.tiempos || []).reduce((s, t) => s + (t.minutos_estimados || 0), 0)
 }
 
-// Minutos por pieza (asumiendo que los tiempos del catálogo son para lote de 50)
+// Minutos por pieza (los tiempos del catálogo están medidos para lote_base, default 50)
 export function minutosPorPieza(modelo) {
-  return minutosLote50(modelo) / 50
+  const lote = modelo?.lote_base || 50
+  return minutosLote50(modelo) / lote
 }
 
 // Total mensual de costos fijos
@@ -88,11 +89,14 @@ export function costearModelo(opts) {
   const {
     modelo, blend, color, fragInsumo, fragPct = 8, pabilo,
     empaqueInsumos = [], lotePiezas = 50, config, costosFijos,
-    insumosById, cargoExtra = 0,
+    insumosById, cargoExtra = 0, overrides = {},
   } = opts
+  // overrides opcionales (D1): { mermaPct, costoMinuto, costoLuz, costoRenta }
+  // Cada uno, si viene definido (no null/undefined), reemplaza el valor calculado.
+  const ov = (v) => v !== undefined && v !== null && v !== ''
 
   const peso = modelo?.peso_gr || 0
-  const merma = config?.merma_default_pct ?? 8
+  const merma = ov(overrides.mermaPct) ? Number(overrides.mermaPct) : (config?.merma_default_pct ?? 8)
   const gramosLote = ceraTotalLote(peso, lotePiezas, merma)
 
   // MPD
@@ -118,15 +122,21 @@ export function costearModelo(opts) {
   // MOD
   const minutos = minutosPorPieza(modelo)
   const minutosMes = (config?.horas_productivas_mes || 192) * 60
-  const costoMinuto = minutosMes > 0 ? (config?.sueldo_mensual || 0) / minutosMes : 0
+  const costoMinuto = ov(overrides.costoMinuto)
+    ? Number(overrides.costoMinuto)
+    : (minutosMes > 0 ? (config?.sueldo_mensual || 0) / minutosMes : 0)
   const costoMOD = minutos * costoMinuto
 
   // Indirectos
   const prodMes = config?.produccion_mensual_estimada || 500
   const rentaItem = (costosFijos || []).find((c) => /renta/i.test(c.concepto))
   const luzItem = (costosFijos || []).find((c) => /luz/i.test(c.concepto))
-  const costoLuz = prodMes > 0 ? (luzItem?.monto_mensual || 0) / prodMes : 0
-  const costoRenta = prodMes > 0 ? (rentaItem?.monto_mensual || 0) / prodMes : 0
+  const costoLuz = ov(overrides.costoLuz)
+    ? Number(overrides.costoLuz)
+    : (prodMes > 0 ? (luzItem?.monto_mensual || 0) / prodMes : 0)
+  const costoRenta = ov(overrides.costoRenta)
+    ? Number(overrides.costoRenta)
+    : (prodMes > 0 ? (rentaItem?.monto_mensual || 0) / prodMes : 0)
   const vidaUtilPiezas =
     ((config?.vida_util_moldes_meses || 24) * prodMes) || 1
   const costoDeprec = (config?.inversion_moldes || 0) / vidaUtilPiezas

@@ -29,6 +29,9 @@ export default function Costeo() {
   const [margen, setMargen] = useState(80)
   const [cargoExtra, setCargoExtra] = useState(0)
   const [guardado, setGuardado] = useState(false)
+  // D1 — overrides manuales (vacío = usar cálculo automático)
+  const [ovOpen, setOvOpen] = useState(false)
+  const [ov, setOv] = useState({ mermaPct: '', costoMinuto: '', costoLuz: '', costoRenta: '' })
 
   const modelo = modelos.find((m) => m.id === modeloId)
   const empaqueInsumos = EMPAQUE_OPCIONES.filter((o) => empaque[o.key]).map((o) => ({
@@ -46,7 +49,8 @@ export default function Costeo() {
     lotePiezas: Number(lote) || 1,
     config, costosFijos, insumosById,
     cargoExtra: Number(cargoExtra) || 0,
-  }), [modelo, blendId, colorId, fragId, fragPct, pabiloId, empaque, lote, cargoExtra]) // eslint-disable-line
+    overrides: ov,
+  }), [modelo, blendId, colorId, fragId, fragPct, pabiloId, empaque, lote, cargoExtra, ov]) // eslint-disable-line
 
   const precio = precioConMargen(costoTotal, Number(margen))
 
@@ -132,6 +136,26 @@ export default function Costeo() {
           </div>
           <div className="mt-3">
             <Field label="Cargo extra personalización ($)"><Input type="number" value={cargoExtra} onChange={(e) => setCargoExtra(e.target.value)} /></Field>
+          </div>
+
+          <div className="mt-4 border-t border-[#efe7dd] pt-3">
+            <button onClick={() => setOvOpen((v) => !v)} className="text-sm text-amber font-medium hover:underline">
+              {ovOpen ? '▾' : '▸'} Ajustes avanzados (editar costos manualmente)
+            </button>
+            {ovOpen && (
+              <>
+                <p className="text-xs text-ink/45 mt-2 mb-2">Deja en blanco para usar el cálculo automático. Lo que escribas reemplaza el valor calculado para este costeo.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Merma % (override)"><Input type="number" placeholder={`auto: ${num(config?.merma_default_pct ?? 8)}%`} value={ov.mermaPct} onChange={(e) => setOv({ ...ov, mermaPct: e.target.value })} /></Field>
+                  <Field label="Mano de obra $/min (override)"><Input type="number" placeholder={`auto: ${mxn((config?.sueldo_mensual || 0) / ((config?.horas_productivas_mes || 192) * 60))}`} value={ov.costoMinuto} onChange={(e) => setOv({ ...ov, costoMinuto: e.target.value })} /></Field>
+                  <Field label="Luz $/pieza (override)"><Input type="number" placeholder={`auto: ${mxn(detalle.costoLuz)}`} value={ov.costoLuz} onChange={(e) => setOv({ ...ov, costoLuz: e.target.value })} /></Field>
+                  <Field label="Renta $/pieza (override)"><Input type="number" placeholder={`auto: ${mxn(detalle.costoRenta)}`} value={ov.costoRenta} onChange={(e) => setOv({ ...ov, costoRenta: e.target.value })} /></Field>
+                </div>
+                {(ov.mermaPct || ov.costoMinuto || ov.costoLuz || ov.costoRenta) !== '' && (ov.mermaPct || ov.costoMinuto || ov.costoLuz || ov.costoRenta) && (
+                  <Button size="sm" variant="ghost" className="mt-2" onClick={() => setOv({ mermaPct: '', costoMinuto: '', costoLuz: '', costoRenta: '' })}>Limpiar overrides</Button>
+                )}
+              </>
+            )}
           </div>
         </Card>
 

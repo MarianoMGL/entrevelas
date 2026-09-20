@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useStore } from '../lib/store'
 import { Card, SectionTitle, Field, Input, Badge, Button } from '../components/ui'
 import { num, minutosPorPieza } from '../lib/calc'
+import { exportXLSXMulti } from '../lib/exportar'
 
 export default function Capacidad() {
   const { db } = useStore()
@@ -36,9 +37,34 @@ export default function Capacidad() {
   const totalHorasMix = totalMinMix / 60
   const cabe = totalMinMix <= minutosMes
 
+  const exportExcel = () => {
+    exportXLSXMulti([
+      {
+        name: 'Capacidad',
+        rows: [
+          { Parámetro: 'Días productivos/mes', Valor: dias },
+          { Parámetro: 'Horas/día', Valor: horasDia },
+          { Parámetro: 'Horas disponibles/mes', Valor: horasMes },
+          {},
+          ...tabla.map((r) => ({ Modelo: r.m.nombre, 'Min/pieza': Number(r.minPz.toFixed(1)), 'Piezas/mes': r.capacidad })),
+        ],
+      },
+      {
+        name: 'Mix de pedidos',
+        rows: mixRows.filter((r) => r.pedido > 0).map((r) => ({
+          Modelo: r.m.nombre, Piezas: r.pedido, 'Horas necesarias': Number(r.horasNec.toFixed(1)),
+          '¿Entra?': r.acumMin <= minutosMes ? 'Sí' : 'No',
+        })),
+      },
+    ], 'capacidad_entrevelas')
+  }
+
   return (
     <div>
-      <SectionTitle sub="¿Cuántas piezas puede producir el taller al mes? Simula tu mix de pedidos.">
+      <SectionTitle
+        sub="¿Cuántas piezas puede producir el taller al mes? Simula tu mix de pedidos."
+        action={<Button variant="ghost" onClick={exportExcel}>⬇ Excel</Button>}
+      >
         Capacidad instalada
       </SectionTitle>
 

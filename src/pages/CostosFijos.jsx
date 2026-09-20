@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { Card, SectionTitle, Button, Input, Field, Badge } from '../components/ui'
 import { mxn, num, totalCostosFijos } from '../lib/calc'
+import { exportXLSX } from '../lib/exportar'
 
 export default function CostosFijos() {
   const { db, updateIn, addTo, removeFrom, setConfig, resetDb } = useStore()
@@ -21,9 +22,22 @@ export default function CostosFijos() {
     setNuevo({ concepto: '', monto_mensual: '' })
   }
 
+  const exportExcel = () => {
+    const rows = [
+      ...costosFijos.map((c) => ({ Concepto: c.concepto, 'Monto mensual': c.monto_mensual })),
+      { Concepto: 'Depreciación de equipos (auto)', 'Monto mensual': Number(depMensual.toFixed(2)) },
+      { Concepto: 'TOTAL MENSUAL', 'Monto mensual': Number(totalConDep.toFixed(2)) },
+      { Concepto: 'Costo indirecto por pieza', 'Monto mensual': Number(indirectoPieza.toFixed(2)) },
+    ]
+    exportXLSX(rows, 'costos_fijos_entrevelas', 'Costos Fijos')
+  }
+
   return (
     <div>
-      <SectionTitle sub="Costos fijos e indirectos del taller, y configuración global de costeo">
+      <SectionTitle
+        sub="Costos fijos e indirectos del taller, y configuración global de costeo"
+        action={<Button variant="ghost" onClick={exportExcel}>⬇ Excel</Button>}
+      >
         Costos fijos / Indirectos
       </SectionTitle>
 

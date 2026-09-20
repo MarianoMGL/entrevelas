@@ -47,7 +47,7 @@ export const insumosSeed = [
   ins('Molde árbol', 'Moldes', 'Mercado Libre', 'pieza', 1, 'pieza', 220, 9, 2),
 ]
 
-function ins(nombre, categoria, proveedor, presentacion, cant, unidad, precio, stock, stockMin) {
+function ins(nombre, categoria, proveedor, presentacion, cant, unidad, precio, stock, stockMin, stockMax) {
   return {
     id: uid('ins'),
     nombre,
@@ -59,6 +59,7 @@ function ins(nombre, categoria, proveedor, presentacion, cant, unidad, precio, s
     precio_presentacion_sin_iva: precio,
     stock_actual: stock,
     stock_minimo: stockMin,
+    stock_maximo: stockMax ?? Math.round(stock * 1.5),
     notas: '',
     activo: true,
   }
@@ -170,12 +171,16 @@ function modelo(nombre, categoria, peso, diametro, piezasMolde, overrides = {}, 
     peso_gr: peso,
     diametro_cm: diametro,
     piezas_por_molde: piezasMolde,
+    lote_base: 50, // los tiempos por etapa están medidos para este tamaño de lote
     imagen_url: '',
     activo: true,
     notas_produccion: notas,
     tiempos: tiempos(overrides),
   }
 }
+
+// Categorías de modelos (personalizables por el usuario)
+export const categoriasModelosSeed = ['Florales', 'Navidad', 'Día de Muertos', 'Temporada', 'Básicas']
 
 export const modelosSeed = [
   modelo('Leche con galleta y pino', 'Navidad', 180, 7, 6, { 'Pintura externa': 35 }, 'Detalle de pino pintado a mano'),
@@ -289,15 +294,39 @@ export const ordenesSeed = [
   },
 ]
 
+// ----------------------------------------------------------------------------
+// GASTOS e INGRESOS (registros de ejemplo del mes)
+// ----------------------------------------------------------------------------
+const isoDay = (d) => { const x = new Date(); x.setDate(x.getDate() - d); return x.toISOString() }
+
+export const gastosSeed = [
+  { id: uid('gas'), fecha: isoDay(2), concepto: 'Compra de cera de soya', categoria: 'Insumos', monto: 4120, notas: '2 bolsas' },
+  { id: uid('gas'), fecha: isoDay(5), concepto: 'Fragancias surtido', categoria: 'Insumos', monto: 1360, notas: '' },
+  { id: uid('gas'), fecha: isoDay(9), concepto: 'Recibo de luz', categoria: 'Servicios', monto: 2872, notas: '' },
+  { id: uid('gas'), fecha: isoDay(12), concepto: 'Empaque y etiquetas', categoria: 'Empaque', monto: 890, notas: '' },
+  { id: uid('gas'), fecha: isoDay(18), concepto: 'Publicidad en redes', categoria: 'Marketing', monto: 800, notas: 'Campaña temporada' },
+]
+
+export const ingresosSeed = [
+  { id: uid('ing'), fecha: isoDay(1), modelo_id: modId('Brownie con Cempasúchil'), cantidad: 12, precio_unitario: 190, notas: 'Tienda de regalos' },
+  { id: uid('ing'), fecha: isoDay(4), modelo_id: modId('Árbol M (mediano)'), cantidad: 8, precio_unitario: 245, notas: '' },
+  { id: uid('ing'), fecha: isoDay(7), modelo_id: modId('Leche con galleta y oso'), cantidad: 18, precio_unitario: 210, notas: 'Pedido personalizado' },
+  { id: uid('ing'), fecha: isoDay(15), modelo_id: modId('Pan de muerto'), cantidad: 10, precio_unitario: 260, notas: '' },
+]
+
 export const fullSeed = () => ({
   insumos: insumosSeed,
   blends: blendsSeed,
   colores: coloresSeed,
   modelos: modelosSeed,
+  categoriasModelos: categoriasModelosSeed,
   ordenes: ordenesSeed,
   costosFijos: costosFijosSeed,
   costeos: [],
   movimientos: [],
+  gastos: gastosSeed,
+  ingresos: ingresosSeed,
+  cotizaciones: [],
   config: configSeed,
 })
 

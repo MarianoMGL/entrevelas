@@ -3,10 +3,29 @@ import { fullSeed } from './seed'
 
 const KEY = 'entrevelas:db:v1'
 
+// Migración aditiva: rellena campos/colecciones nuevas sin borrar datos del usuario.
+function migrate(db) {
+  const seed = fullSeed()
+  // Colecciones nuevas que pudieran no existir en datos viejos
+  for (const coll of ['gastos', 'ingresos', 'cotizaciones']) {
+    if (!Array.isArray(db[coll])) db[coll] = []
+  }
+  // Categorías de modelos personalizables
+  if (!Array.isArray(db.categoriasModelos)) db.categoriasModelos = seed.categoriasModelos
+  // Insumos: stock_maximo y lote_base
+  db.insumos = (db.insumos || []).map((i) => ({
+    ...i,
+    stock_maximo: i.stock_maximo ?? Math.round((i.stock_actual || 0) * 1.5),
+  }))
+  // Modelos: tamaño de lote base
+  db.modelos = (db.modelos || []).map((m) => ({ ...m, lote_base: m.lote_base ?? 50 }))
+  return db
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) return migrate(JSON.parse(raw))
   } catch (e) { /* ignore */ }
   const seed = fullSeed()
   localStorage.setItem(KEY, JSON.stringify(seed))

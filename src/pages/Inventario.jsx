@@ -2,15 +2,23 @@ import { useState, useMemo } from 'react'
 import { useStore } from '../lib/store'
 import { Card, SectionTitle, Button, Badge, Input, Select, Field } from '../components/ui'
 import { mxn, num, precioPorUnidad } from '../lib/calc'
+import { exportXLSX, downloadCSV, rowsToCSV } from '../lib/exportar'
 
 const CATEGORIAS = ['Ceras', 'Colorantes', 'Fragancias', 'Pabilos', 'Empaque', 'Moldes', 'Herramientas', 'Otros']
-const UNIDADES = ['gr', 'ml', 'pieza', 'metro']
+const UNIDADES = ['gr', 'kg', 'ml', 'pieza', 'metro']
 
 const nuevoInsumo = () => ({
   nombre: '', categoria: 'Ceras', proveedor: '', presentacion: '',
   cantidad_presentacion: 0, unidad_minima: 'gr', precio_presentacion_sin_iva: 0,
-  stock_actual: 0, stock_minimo: 0, notas: '', activo: true,
+  stock_actual: 0, stock_minimo: 0, stock_maximo: 0, notas: '', activo: true,
 })
+
+// Estado de stock: 'bajo' | 'sobre' | 'ok'
+function estadoStock(i) {
+  if (i.stock_actual <= i.stock_minimo) return 'bajo'
+  if (i.stock_maximo > 0 && i.stock_actual >= i.stock_maximo) return 'sobre'
+  return 'ok'
+}
 
 export default function Inventario() {
   const { db, addTo, updateIn, removeFrom } = useStore()
@@ -20,47 +28,68 @@ export default function Inventario() {
   const [draft, setDraft] = useState(null)
   const [adding, setAdding] = useState(false)
   const [newRow, setNewRow] = useState(nuevoInsumo())
+  const [sortKey, setSortKey] = useState('nombre')
+  const [sortDir, setSortDir] = useState('asc')
+  const [agrupar, setAgrupar] = useState(false)
 
   const insumos = db.insumos || []
+
+  const toNum = (o) => ({
+    ...o,
+    cantidad_presentacion: Number(o.cantidad_presentacion) || 0,
+    precio_presentacion_sin_iva: Number(o.precio_presentacion_sin_iva) || 0,
+    stock_actual: Number(o.stock_actual) || 0,
+    stock_minimo: Number(o.stock_minimo) || 0,
+    stock_maximo: Number(o.stock_maximo) || 0,
+  })
+
   const filtered = useMemo(() => {
-    return insumos.filter((i) => {
+    let list = insumos.filter((i) => {
       if (cat !== 'Todas' && i.categoria !== cat) return false
       if (q && !i.nombre.toLowerCase().includes(q.toLowerCase())) return false
       return true
     })
-  }, [insumos, cat, q])
+    const dir = sortDir === 'asc' ? 1 : -1
+    list = [...list].sort((a, b) => {
+      let va, vb
+      if (sortKey === 'precioUnidad') { va = precioPorUnidad(a); vb = precioPorUnidad(b) }
+      else if (sortKey === 'stock_actual') { va = a.stock_actual; vb = b.stock_actual }
+      else { va = a[sortKey]; vb = b[sortKey] }
+      if (typeof va === 'string') return va.localeCompare(vb) * dir
+      return ((va || 0) - (vb || 0)) * dir
+    })
+    if (agrupar) list = [...list].sort((a, b) => a.categoria.localeCompare(b.categoria))
+    return list
+  }, [insumos, cat, q, sortKey, sortDir, agrupar])
 
   const startEdit = (i) => { setEditId(i.id); setDraft({ ...i }) }
-  const saveEdit = () => {
-    updateIn('insumos', editId, {
-      ...draft,
-      cantidad_presentacion: Number(draft.cantidad_presentacion) || 0,
-      precio_presentacion_sin_iva: Number(draft.precio_presentacion_sin_iva) || 0,
-      stock_actual: Number(draft.stock_actual) || 0,
-      stock_minimo: Number(draft.stock_minimo) || 0,
-    })
-    setEditId(null); setDraft(null)
-  }
-  const addRow = () => {
-    addTo('insumos', {
-      ...newRow,
-      cantidad_presentacion: Number(newRow.cantidad_presentacion) || 0,
-      precio_presentacion_sin_iva: Number(newRow.precio_presentacion_sin_iva) || 0,
-      stock_actual: Number(newRow.stock_actual) || 0,
-      stock_minimo: Number(newRow.stock_minimo) || 0,
-    }, 'ins')
-    setNewRow(nuevoInsumo()); setAdding(false)
+  const saveEdit = () => { updateIn('insumos', editId, toNum(draft)); setEditId(null); setDraft(null) }
+  const addRow = () => { addTo('insumos', toNum(newRow), 'ins'); setNewRow(nuevoInsumo()); setAdding(false) }
+
+  const setSort = (key) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('asc') }
   }
 
-  const exportCSV = () => {
-    const head = ['Nombre', 'Categoria', 'Proveedor', 'Presentacion', 'Cantidad', 'Unidad', 'Precio s/IVA', 'Precio/unidad', 'Stock', 'Stock min', 'Notas']
-    const rows = filtered.map((i) => [
-      i.nombre, i.categoria, i.proveedor, i.presentacion, i.cantidad_presentacion, i.unidad_minima,
-      i.precio_presentacion_sin_iva, precioPorUnidad(i).toFixed(4), i.stock_actual, i.stock_minimo, i.notas,
-    ])
-    const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
-    downloadCSV(csv, 'inventario_entrevelas.csv')
-  }
+  const dataRows = () => filtered.map((i) => ({
+    Nombre: i.nombre, Categoría: i.categoria, Proveedor: i.proveedor, Presentación: i.presentacion,
+    Cantidad: i.cantidad_presentacion, Unidad: i.unidad_minima,
+    'Precio s/IVA': i.precio_presentacion_sin_iva, 'Precio/unidad': Number(precioPorUnidad(i).toFixed(4)),
+    'Stock actual': i.stock_actual, 'Stock mínimo': i.stock_minimo, 'Stock máximo': i.stock_maximo,
+    Estado: estadoStock(i) === 'bajo' ? 'BAJO MÍNIMO' : estadoStock(i) === 'sobre' ? 'SOBRE STOCK' : 'OK',
+    Notas: i.notas,
+  }))
+  const exportExcel = () => exportXLSX(dataRows(), 'inventario_entrevelas', 'Inventario')
+  const exportCSV = () => downloadCSV(rowsToCSV(dataRows()), 'inventario_entrevelas')
+
+  const SortTh = ({ k, children, align = 'left' }) => (
+    <th className={`px-3 py-2 font-semibold cursor-pointer select-none hover:text-coffee text-${align}`} onClick={() => setSort(k)}>
+      {children}{sortKey === k && <span className="text-amber ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+    </th>
+  )
+
+  const bajos = insumos.filter((i) => estadoStock(i) === 'bajo').length
+  const sobres = insumos.filter((i) => estadoStock(i) === 'sobre').length
 
   return (
     <div>
@@ -68,7 +97,8 @@ export default function Inventario() {
         sub="Cada insumo con su precio por unidad mínima calculado automáticamente"
         action={
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={exportCSV}>⬇ Exportar CSV</Button>
+            <Button variant="ghost" onClick={exportCSV}>⬇ CSV</Button>
+            <Button variant="ghost" onClick={exportExcel}>⬇ Excel</Button>
             <Button variant="amber" onClick={() => setAdding((v) => !v)}>+ Agregar insumo</Button>
           </div>
         }
@@ -76,17 +106,23 @@ export default function Inventario() {
         Inventario de Insumos
       </SectionTitle>
 
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div className="w-56">
-          <Input placeholder="🔍 Buscar por nombre…" value={q} onChange={(e) => setQ(e.target.value)} />
-        </div>
+      <div className="flex flex-wrap gap-3 mb-4 items-center">
+        <div className="w-56"><Input placeholder="🔍 Buscar por nombre…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div className="w-48">
           <Select value={cat} onChange={(e) => setCat(e.target.value)}>
             <option>Todas</option>
             {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
           </Select>
         </div>
-        <div className="ml-auto text-sm text-ink/50 self-center">{filtered.length} insumos</div>
+        <label className="flex items-center gap-2 text-sm text-ink/70 cursor-pointer">
+          <input type="checkbox" checked={agrupar} onChange={(e) => setAgrupar(e.target.checked)} className="accent-amber" />
+          Agrupar por categoría
+        </label>
+        <div className="ml-auto flex items-center gap-2 text-sm">
+          {bajos > 0 && <Badge tone="red">{bajos} bajo mínimo</Badge>}
+          {sobres > 0 && <Badge tone="amber">{sobres} sobre stock</Badge>}
+          <span className="text-ink/50">{filtered.length} insumos</span>
+        </div>
       </div>
 
       {adding && (
@@ -100,7 +136,7 @@ export default function Inventario() {
               </Select>
             </Field>
             <Field label="Proveedor"><Input value={newRow.proveedor} onChange={(e) => setNewRow({ ...newRow, proveedor: e.target.value })} /></Field>
-            <Field label="Presentación"><Input value={newRow.presentacion} onChange={(e) => setNewRow({ ...newRow, presentacion: e.target.value })} placeholder="bolsa 25 kg" /></Field>
+            <Field label="Presentación"><Input value={newRow.presentacion} onChange={(e) => setNewRow({ ...newRow, presentacion: e.target.value })} placeholder="bolsa 25 kg / frasco 250 gr" /></Field>
             <Field label="Cantidad por presentación"><Input type="number" value={newRow.cantidad_presentacion} onChange={(e) => setNewRow({ ...newRow, cantidad_presentacion: e.target.value })} /></Field>
             <Field label="Unidad">
               <Select value={newRow.unidad_minima} onChange={(e) => setNewRow({ ...newRow, unidad_minima: e.target.value })}>
@@ -110,6 +146,7 @@ export default function Inventario() {
             <Field label="Precio s/IVA"><Input type="number" value={newRow.precio_presentacion_sin_iva} onChange={(e) => setNewRow({ ...newRow, precio_presentacion_sin_iva: e.target.value })} /></Field>
             <Field label="Stock actual"><Input type="number" value={newRow.stock_actual} onChange={(e) => setNewRow({ ...newRow, stock_actual: e.target.value })} /></Field>
             <Field label="Stock mínimo"><Input type="number" value={newRow.stock_minimo} onChange={(e) => setNewRow({ ...newRow, stock_minimo: e.target.value })} /></Field>
+            <Field label="Stock máximo"><Input type="number" value={newRow.stock_maximo} onChange={(e) => setNewRow({ ...newRow, stock_maximo: e.target.value })} /></Field>
           </div>
           <div className="flex gap-2 mt-3">
             <Button variant="sage" onClick={addRow} disabled={!newRow.nombre}>Guardar insumo</Button>
@@ -123,19 +160,18 @@ export default function Inventario() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#f4ede4] text-ink/60 text-left text-xs uppercase tracking-wide">
-                <th className="px-3 py-2 font-semibold">Insumo</th>
-                <th className="px-3 py-2 font-semibold">Categoría</th>
+                <SortTh k="nombre">Insumo</SortTh>
+                <SortTh k="categoria">Categoría</SortTh>
                 <th className="px-3 py-2 font-semibold">Proveedor</th>
                 <th className="px-3 py-2 font-semibold">Presentación</th>
-                <th className="px-3 py-2 font-semibold text-right">Precio s/IVA</th>
-                <th className="px-3 py-2 font-semibold text-right">$ / unidad</th>
-                <th className="px-3 py-2 font-semibold text-right">Stock</th>
+                <SortTh k="precioUnidad" align="right">$ / unidad</SortTh>
+                <SortTh k="stock_actual" align="right">Stock (mín–máx)</SortTh>
                 <th className="px-3 py-2 font-semibold"></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((i) => {
-                const bajo = i.stock_actual <= i.stock_minimo
+                const est = estadoStock(i)
                 const isEdit = editId === i.id
                 if (isEdit) {
                   return (
@@ -151,14 +187,17 @@ export default function Inventario() {
                         <div className="flex gap-1">
                           <Input className="w-20" value={draft.presentacion} onChange={(e) => setDraft({ ...draft, presentacion: e.target.value })} />
                           <Input className="w-16" type="number" value={draft.cantidad_presentacion} onChange={(e) => setDraft({ ...draft, cantidad_presentacion: e.target.value })} />
+                          <Select className="w-16" value={draft.unidad_minima} onChange={(e) => setDraft({ ...draft, unidad_minima: e.target.value })}>
+                            {UNIDADES.map((u) => <option key={u}>{u}</option>)}
+                          </Select>
                         </div>
                       </td>
                       <td className="px-3 py-2"><Input className="w-24 text-right" type="number" value={draft.precio_presentacion_sin_iva} onChange={(e) => setDraft({ ...draft, precio_presentacion_sin_iva: e.target.value })} /></td>
-                      <td className="px-3 py-2 text-right text-ink/50">{mxn(precioPorUnidad({ ...draft, cantidad_presentacion: Number(draft.cantidad_presentacion), precio_presentacion_sin_iva: Number(draft.precio_presentacion_sin_iva) }))}</td>
                       <td className="px-3 py-2">
                         <div className="flex gap-1">
-                          <Input className="w-16 text-right" type="number" value={draft.stock_actual} onChange={(e) => setDraft({ ...draft, stock_actual: e.target.value })} />
-                          <Input className="w-16 text-right" type="number" value={draft.stock_minimo} onChange={(e) => setDraft({ ...draft, stock_minimo: e.target.value })} />
+                          <Input className="w-16 text-right" type="number" value={draft.stock_actual} onChange={(e) => setDraft({ ...draft, stock_actual: e.target.value })} title="actual" />
+                          <Input className="w-14 text-right" type="number" value={draft.stock_minimo} onChange={(e) => setDraft({ ...draft, stock_minimo: e.target.value })} title="mínimo" />
+                          <Input className="w-14 text-right" type="number" value={draft.stock_maximo} onChange={(e) => setDraft({ ...draft, stock_maximo: e.target.value })} title="máximo" />
                         </div>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
@@ -172,14 +211,16 @@ export default function Inventario() {
                   <tr key={i.id} className="border-t border-[#efe7dd] hover:bg-cream/40">
                     <td className="px-3 py-2 font-medium text-ink">
                       {i.nombre}
-                      {bajo && <Badge tone="red" className="ml-2">bajo mínimo</Badge>}
+                      {est === 'bajo' && <Badge tone="red" className="ml-2">bajo mínimo</Badge>}
+                      {est === 'sobre' && <Badge tone="amber" className="ml-2">sobre stock</Badge>}
                     </td>
                     <td className="px-3 py-2 text-ink/60">{i.categoria}</td>
                     <td className="px-3 py-2 text-ink/60">{i.proveedor}</td>
                     <td className="px-3 py-2 text-ink/60">{i.presentacion}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{mxn(i.precio_presentacion_sin_iva)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-coffee font-semibold">{mxn(precioPorUnidad(i))}<span className="text-ink/40 text-xs">/{i.unidad_minima}</span></td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${bajo ? 'text-alert font-semibold' : ''}`}>{num(i.stock_actual)} <span className="text-ink/40 text-xs">/ {num(i.stock_minimo)}</span></td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${est === 'bajo' ? 'text-alert font-semibold' : est === 'sobre' ? 'text-amber font-semibold' : ''}`}>
+                      {num(i.stock_actual)} <span className="text-ink/40 text-xs">({num(i.stock_minimo)}–{num(i.stock_maximo)})</span>
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap text-right">
                       <button onClick={() => startEdit(i)} className="text-amber hover:underline text-xs">Editar</button>
                       <button
@@ -198,10 +239,5 @@ export default function Inventario() {
   )
 }
 
-export function downloadCSV(csv, filename) {
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
-}
+// Compatibilidad: Precios.jsx importa downloadCSV desde aquí.
+export { downloadCSV }
