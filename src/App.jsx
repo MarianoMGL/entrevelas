@@ -8,6 +8,9 @@ import Flujo from './pages/Flujo'
 import Ficha from './pages/Ficha'
 import Costeo from './pages/Costeo'
 import Precios from './pages/Precios'
+import Cotizacion from './pages/Cotizacion'
+import Gastos from './pages/Gastos'
+import Ingresos from './pages/Ingresos'
 import PuntoEquilibrio from './pages/PuntoEquilibrio'
 import Capacidad from './pages/Capacidad'
 import CostosFijos from './pages/CostosFijos'
@@ -24,6 +27,9 @@ export default function App() {
         <Route path="/ordenes/:id/ficha" element={<Ficha />} />
         <Route path="/costeo" element={<Costeo />} />
         <Route path="/precios" element={<Precios />} />
+        <Route path="/cotizacion" element={<Cotizacion />} />
+        <Route path="/gastos" element={<Gastos />} />
+        <Route path="/ingresos" element={<Ingresos />} />
         <Route path="/punto-equilibrio" element={<PuntoEquilibrio />} />
         <Route path="/capacidad" element={<Capacidad />} />
         <Route path="/costos-fijos" element={<CostosFijos />} />

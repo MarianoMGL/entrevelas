@@ -44,11 +44,42 @@ export default function PuntoEquilibrio() {
   const peUnidades = margenContrib > 0 ? gastosFijos / margenContrib : null
   const pePesos = peUnidades != null ? peUnidades * precio : null
 
+  // Comparativo real del mes (F3): ingresos y gastos registrados
+  const now = new Date()
+  const esteMes = (iso) => { const d = new Date(iso); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() }
+  const ingresosMes = (db.ingresos || []).filter((i) => esteMes(i.fecha)).reduce((s, i) => s + (Number(i.cantidad) || 0) * (Number(i.precio_unitario) || 0), 0)
+  const gastosMes = (db.gastos || []).filter((g) => esteMes(g.fecha)).reduce((s, g) => s + (Number(g.monto) || 0), 0)
+  const utilidadMes = ingresosMes - gastosMes
+  const avancePE = pePesos ? Math.min(100, (ingresosMes / pePesos) * 100) : 0
+
   return (
     <div>
-      <SectionTitle sub="¿Cuántas velas necesitas vender al mes para cubrir todos tus costos?">
+      <SectionTitle sub="Comparativo real del mes y cálculo de cuántas velas vender para cubrir tus costos">
         Punto de equilibrio
       </SectionTitle>
+
+      {/* Dashboard — datos reales del mes */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <Stat label="Ingresos del mes" value={mxn(ingresosMes)} sub="ventas registradas" tone="sage" icon="💵" />
+        <Stat label="Gastos del mes" value={mxn(gastosMes)} sub="gastos registrados" tone="red" icon="🧾" />
+        <Stat label="Utilidad del mes" value={mxn(utilidadMes)} sub={utilidadMes >= 0 ? 'en positivo' : 'en negativo'} tone={utilidadMes >= 0 ? 'sage' : 'red'} icon="📊" />
+        <Stat label="Avance al equilibrio" value={`${num(avancePE, 0)}%`} sub={pePesos ? `meta ${mxn(pePesos)}` : ''} tone="amber" icon="🎯" />
+      </div>
+
+      <Card className="p-5 mb-5">
+        <div className="flex items-center justify-between mb-2 text-sm">
+          <span className="text-ink/60">Ingresos del mes vs. punto de equilibrio</span>
+          <span className="text-ink/50">{mxn(ingresosMes)} / {pePesos ? mxn(pePesos) : '—'}</span>
+        </div>
+        <div className="h-4 bg-[#e3d8cc] rounded-full overflow-hidden">
+          <div className={`h-full transition-all ${ingresosMes >= (pePesos || Infinity) ? 'bg-sage' : 'bg-amber'}`} style={{ width: `${avancePE}%` }} />
+        </div>
+        <p className="text-xs text-ink/45 mt-2">
+          {ingresosMes >= (pePesos || Infinity)
+            ? '¡Superaste el punto de equilibrio este mes! Todo lo demás es utilidad.'
+            : `Faltan ${mxn(Math.max(0, (pePesos || 0) - ingresosMes))} en ventas para cubrir tus costos del mes.`}
+        </p>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card className="p-5">
