@@ -10,14 +10,17 @@ export const PASOS = [
   { n: 6, nombre: 'Reposo y curado', corto: 'Reposo' },
 ]
 
-export default function FlameProgress({ pasoActual, onSelect, compact = false }) {
+export default function FlameProgress({ pasoActual, onSelect, compact = false, omitidos = [] }) {
   return (
     <div className="flex items-stretch gap-1 md:gap-2">
       {PASOS.map((p, idx) => {
-        const completado = p.n < pasoActual
-        const activo = p.n === pasoActual
-        const icon = completado ? '✅' : activo ? '🔥' : '🕯️'
-        const tone = completado
+        const omitido = omitidos.includes(p.n)
+        const completado = !omitido && p.n < pasoActual
+        const activo = !omitido && p.n === pasoActual
+        const icon = omitido ? '➖' : completado ? '✅' : activo ? '🔥' : '🕯️'
+        const tone = omitido
+          ? 'bg-[#f4ede4] border-dashed border-[#d8cabd] text-ink/30'
+          : completado
           ? 'bg-sage/15 border-sage/40 text-[#4d7152]'
           : activo
           ? 'bg-amber/15 border-amber text-[#a35a23] ring-2 ring-amber/30'
@@ -26,13 +29,13 @@ export default function FlameProgress({ pasoActual, onSelect, compact = false })
           <div key={p.n} className="flex items-center flex-1 min-w-0">
             <button
               type="button"
-              disabled={!onSelect}
-              onClick={() => onSelect && onSelect(p.n)}
-              className={`flex-1 min-w-0 rounded-xl border px-2 py-2 text-center transition ${tone} ${onSelect ? 'cursor-pointer hover:brightness-95' : 'cursor-default'}`}
+              disabled={!onSelect || omitido}
+              onClick={() => onSelect && !omitido && onSelect(p.n)}
+              className={`flex-1 min-w-0 rounded-xl border px-2 py-2 text-center transition ${tone} ${onSelect && !omitido ? 'cursor-pointer hover:brightness-95' : 'cursor-default'}`}
             >
               <div className={`text-lg leading-none ${activo ? 'flame-active' : ''}`}>{icon}</div>
               {!compact && (
-                <div className="mt-1 text-[10px] md:text-xs font-semibold truncate">{p.corto}</div>
+                <div className="mt-1 text-[10px] md:text-xs font-semibold truncate">{omitido ? 'Omitido' : p.corto}</div>
               )}
               <div className="text-[9px] text-ink/40">Paso {p.n}</div>
             </button>

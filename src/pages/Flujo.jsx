@@ -2,20 +2,34 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Card, Button, Badge, Input, Select, Field, Toggle, Checkbox, Textarea } from '../components/ui'
+import { BlendEditor, ColorEditor } from '../components/RecetaEditors'
 import FlameProgress, { PASOS } from '../components/FlameProgress'
 import {
   mxn, num, precioPorUnidad, costoBlendPorGr, blendGramos, ceraTotalLote,
   tiempoTranscurrido, horasRestantesCurado, fmtFecha,
 } from '../lib/calc'
 
+// Solo los pasos 2 (color) y 3 (aroma) pueden omitirse; el resto es obligatorio.
+const OMITIBLES = { 2: 'color', 3: 'aroma' }
+
 export default function Flujo() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { db, updateIn, insumosById, consumirInsumo } = useStore()
+  const { db, updateIn, addTo, insumosById, consumirInsumo } = useStore()
   const orden = (db.ordenes || []).find((o) => o.id === id)
   const [paso, setPaso] = useState(orden?.paso_actual || 1)
+  const [personalizar, setPersonalizar] = useState(false)
 
-  useEffect(() => { if (orden) setPaso(orden.paso_actual) }, [id]) // eslint-disable-line
+  const omitidos = orden?.pasosOmitidos || []
+  const nextActive = (from, omit = omitidos) => { let k = from + 1; while (k < 6 && omit.includes(k)) k++; return Math.min(k, 6) }
+
+  useEffect(() => {
+    if (orden) {
+      let p = orden.paso_actual
+      while (p < 6 && omitidos.includes(p)) p++
+      setPaso(p)
+    }
+  }, [id]) // eslint-disable-line
 
   if (!orden) {
     return (
@@ -26,7 +40,14 @@ export default function Flujo() {
     )
   }
 
-  const modelo = db.modelos.find((m) => m.id === orden.modelo_id)
+  // C4 — modelo con override personalizado (peso/nombre) sin alterar el catálogo
+  const modeloBase = db.modelos.find((m) => m.id === orden.modelo_id)
+  const ov = orden.modelo_override || {}
+  const modelo = modeloBase && {
+    ...modeloBase,
+    peso_gr: ov.peso_gr != null && ov.peso_gr !== '' ? Number(ov.peso_gr) : modeloBase.peso_gr,
+    nombre: ov.nombre || modeloBase.nombre,
+  }
 
   const savePaso = (key, patch) => {
     const pasos = { ...(orden.pasos || {}), [key]: { ...(orden.pasos?.[key] || {}), ...patch } }
@@ -34,7 +55,7 @@ export default function Flujo() {
   }
 
   const avanzar = (n) => {
-    const nextPaso = Math.min(6, n + 1)
+    const nextPaso = nextActive(n)
     const nuevoEstado = n === 5 ? 'En reposo' : orden.estado === 'Listo' ? 'Listo' : 'En proceso'
     updateIn('ordenes', orden.id, {
       paso_actual: Math.max(orden.paso_actual, nextPaso),
@@ -43,7 +64,19 @@ export default function Flujo() {
     setPaso(nextPaso)
   }
 
-  const ctx = { orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, db, updateIn, navigate }
+  // C3 — activar/desactivar un paso opcional para este lote
+  const setLleva = (n, lleva) => {
+    const set = new Set(omitidos)
+    if (lleva) set.delete(n); else set.add(n)
+    const arr = [...set].sort()
+    updateIn('ordenes', orden.id, { pasosOmitidos: arr })
+    if (!lleva && paso === n) setPaso(nextActive(n, arr))
+  }
+
+  // C4 — guardar override del modelo
+  const setOverride = (patch) => updateIn('ordenes', orden.id, { modelo_override: { ...ov, ...patch } })
+
+  const ctx = { orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, db, updateIn, addTo, navigate }
 
   return (
     <div>
@@ -53,12 +86,13 @@ export default function Flujo() {
       <Card className="p-5 mt-3 mb-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-display text-2xl text-coffee">{orden.numero_orden}</span>
               <span className="text-ink/40">·</span>
               <span className="text-ink/80 font-medium">{modelo?.nombre}</span>
               <Badge tone="coffee">{orden.piezas} piezas</Badge>
               {orden.personalizado && <Badge tone="amber">★ personalizado</Badge>}
+              {ov.peso_gr && <Badge tone="amber">peso {num(ov.peso_gr)} gr</Badge>}
             </div>
             <div className="text-sm text-ink/55 mt-1">
               🔥 Paso {paso} de 6 — {PASOS[paso - 1]?.nombre} · Iniciado hace {tiempoTranscurrido(orden.fecha_inicio)}
@@ -67,9 +101,35 @@ export default function Flujo() {
           <div className="text-right text-sm text-ink/50">
             <div>Elabora: <span className="font-medium text-ink/70">{orden.elaboro}</span></div>
             <div>Entrega: {fmtFecha(orden.fecha_entrega_estimada)}</div>
+            <button onClick={() => setPersonalizar((v) => !v)} className="text-amber text-xs hover:underline mt-1">⚙ Personalizar este lote</button>
           </div>
         </div>
-        <FlameProgress pasoActual={paso} onSelect={(n) => n <= orden.paso_actual && setPaso(n)} />
+
+        {personalizar && (
+          <div className="bg-cream/60 rounded-xl p-4 mb-4 border border-[#efe7dd]">
+            <h4 className="font-semibold text-coffee text-sm mb-3">Personalizar este lote</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <span className="block text-xs font-semibold text-ink/60 mb-2 uppercase tracking-wide">Pasos que aplican</span>
+                <div className="space-y-2">
+                  <Checkbox checked={!omitidos.includes(2)} onChange={(v) => setLleva(2, v)} label="Este lote lleva color (Paso 2)" />
+                  <Checkbox checked={!omitidos.includes(3)} onChange={(v) => setLleva(3, v)} label="Este lote lleva aroma (Paso 3)" />
+                </div>
+                <p className="text-xs text-ink/40 mt-2">Los pasos de cera, mezcla, llenado y curado son obligatorios.</p>
+              </div>
+              <div>
+                <span className="block text-xs font-semibold text-ink/60 mb-2 uppercase tracking-wide">Modelo a producir (personalización)</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Nombre personalizado"><Input value={ov.nombre || ''} onChange={(e) => setOverride({ nombre: e.target.value })} placeholder={modeloBase?.nombre} /></Field>
+                  <Field label="Peso por pieza (gr)"><Input type="number" value={ov.peso_gr ?? ''} onChange={(e) => setOverride({ peso_gr: e.target.value })} placeholder={`${modeloBase?.peso_gr}`} /></Field>
+                </div>
+                {(ov.nombre || ov.peso_gr) && <button onClick={() => updateIn('ordenes', orden.id, { modelo_override: {} })} className="text-xs text-alert hover:underline mt-1">Quitar personalización</button>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <FlameProgress pasoActual={paso} omitidos={omitidos} onSelect={(n) => n <= orden.paso_actual && setPaso(n)} />
       </Card>
 
       {paso === 1 && <Paso1 {...ctx} />}
@@ -134,7 +194,7 @@ function PasoCard({ titulo, paso, children, onComplete, completeLabel, canComple
 // ---------------------------------------------------------------------------
 // PASO 1 — Preparación de cera (blend)
 // ---------------------------------------------------------------------------
-function Paso1({ orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, db }) {
+function Paso1({ orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, db, addTo, updateIn }) {
   const d = orden.pasos?.paso1 || {}
   const [blendId, setBlendId] = useState(d.blend_id || db.blends?.[0]?.id || '')
   const [merma, setMerma] = useState(d.merma_pct ?? db.config?.merma_default_pct ?? 8)
@@ -142,6 +202,7 @@ function Paso1({ orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, 
   const [tiempo, setTiempo] = useState(d.tiempo_min ?? 0)
   const [obs, setObs] = useState(d.observaciones || '')
   const [pesados, setPesados] = useState(d.pesados || {})
+  const [editor, setEditor] = useState(null) // 'new' | 'edit' | null
 
   const blend = db.blends.find((b) => b.id === blendId)
   const ceraTotal = ceraTotalLote(modelo?.peso_gr || 0, orden.piezas, Number(merma) || 0)
@@ -170,11 +231,23 @@ function Paso1({ orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, 
 
   return (
     <PasoCard paso={1} titulo="Preparación de cera (blend)" onComplete={completar} completeLabel="Cera lista" canComplete={!!blend}>
+      {editor && (
+        <BlendEditor
+          db={db} addTo={addTo} updateIn={updateIn}
+          blend={editor === 'edit' ? blend : null}
+          onDone={(bid) => { setBlendId(bid); setEditor(null) }}
+          onCancel={() => setEditor(null)}
+        />
+      )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Field label="Blend a usar">
-          <Select value={blendId} onChange={(e) => { setBlendId(e.target.value); }}>
-            {db.blends.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-          </Select>
+          <div className="flex gap-1">
+            <Select value={blendId} onChange={(e) => { setBlendId(e.target.value); }} className="flex-1">
+              {db.blends.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+            </Select>
+            <Button size="sm" variant="ghost" onClick={() => setEditor('edit')} disabled={!blend} title="Editar blend">✎</Button>
+            <Button size="sm" variant="subtle" onClick={() => setEditor('new')} title="Nuevo blend">+</Button>
+          </div>
         </Field>
         <Field label="Merma %" hint="Default 8%, editable">
           <Input type="number" value={merma} onChange={(e) => setMerma(e.target.value)} />
@@ -245,13 +318,14 @@ function Paso1({ orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, 
 // ---------------------------------------------------------------------------
 // PASO 2 — Preparación del color
 // ---------------------------------------------------------------------------
-function Paso2({ orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, db }) {
+function Paso2({ orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, db, addTo, updateIn }) {
   const d = orden.pasos?.paso2 || {}
   const [colorId, setColorId] = useState(d.color_id || db.colores?.[0]?.id || '')
   const [tempMezcla, setTempMezcla] = useState(d.temp_mezcla ?? '')
   const [resultado, setResultado] = useState(d.resultado_visual || '')
   const [obs, setObs] = useState(d.observaciones || '')
   const [pesados, setPesados] = useState(d.pesados || {})
+  const [editor, setEditor] = useState(null) // 'new' | 'edit' | null
 
   const color = db.colores.find((c) => c.id === colorId)
   const ceraTotal = orden.pasos?.paso1?.cera_total_gr || ceraTotalLote(modelo?.peso_gr || 0, orden.piezas, 8)
@@ -274,11 +348,23 @@ function Paso2({ orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, 
 
   return (
     <PasoCard paso={2} titulo="Preparación del color" onComplete={completar} completeLabel="Color listo" canComplete={!!color}>
+      {editor && (
+        <ColorEditor
+          db={db} addTo={addTo} updateIn={updateIn}
+          color={editor === 'edit' ? color : null}
+          onDone={(cid) => { setColorId(cid); setEditor(null) }}
+          onCancel={() => setEditor(null)}
+        />
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Color a usar (biblioteca)">
-          <Select value={colorId} onChange={(e) => setColorId(e.target.value)}>
-            {db.colores.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>)}
-          </Select>
+          <div className="flex gap-1">
+            <Select value={colorId} onChange={(e) => setColorId(e.target.value)} className="flex-1">
+              {db.colores.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>)}
+            </Select>
+            <Button size="sm" variant="ghost" onClick={() => setEditor('edit')} disabled={!color} title="Editar color">✎</Button>
+            <Button size="sm" variant="subtle" onClick={() => setEditor('new')} title="Nuevo color">+</Button>
+          </div>
         </Field>
         <Field label="Temp. de mezcla con cera (°C)">
           <Input type="number" value={tempMezcla} onChange={(e) => setTempMezcla(e.target.value)} onBlur={() => persist({})} placeholder="70" />
