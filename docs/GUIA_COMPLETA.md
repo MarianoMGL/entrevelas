@@ -27,6 +27,8 @@ La información (insumos, órdenes, ventas, etc.) se guarda **en el aparato que 
 
 El menú café de la izquierda tiene todas las secciones.
 
+> **Truco útil en toda la app:** junto a los menús desplegables (Modelo, Blend, Color, Fragancia, Pabilo, Categoría) verás dos botoncitos: **✎** para **editar** la opción elegida y **+** para **crear una nueva** sin salir de la pantalla. Lo que crees o edites queda guardado en la biblioteca.
+
 ### 🏠 Dashboard
 Pantalla de inicio. De un vistazo: lotes en producción, en reposo y listos; avisos de stock bajo; y números del mes. Solo se mira, no se captura nada.
 
@@ -144,6 +146,10 @@ Partiendo de tus notas del cuaderno, esto es lo que se agregó/mejoró:
 
 **Negocio**
 - Investigación y costeo de un **dominio propio** + guía para conectarlo e instructivo de compra.
+
+**Menús editables (en toda la app)**
+- Cada menú desplegable (Modelo, Blend, Color, Fragancia, Pabilo, Categoría) trae botones **✎ (editar)** y **+ (nuevo)**.
+- Puedes crear o modificar una opción desde Costeo, el flujo de producción, Órdenes, Ingresos y Cotización, sin salir de la pantalla.
 
 ---
 
