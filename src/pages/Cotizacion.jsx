@@ -3,6 +3,7 @@ import { useStore } from '../lib/store'
 import { Card, SectionTitle, Button, Badge, Input, Select, Field, Textarea, EmptyState } from '../components/ui'
 import { mxn, num, IVA, conIva, ivaDe, fmtFecha, costearModelo, diasDesde } from '../lib/calc'
 import { exportXLSX, downloadCSV, rowsToCSV } from '../lib/exportar'
+import { ModeloEditor } from '../components/CatalogField'
 
 export default function Cotizacion() {
   const { db, addTo, removeFrom, insumosById, modelosById } = useStore()
@@ -31,6 +32,7 @@ export default function Cotizacion() {
   const [notas, setNotas] = useState('')
   const [items, setItems] = useState([{ modelo_id: modelos[0]?.id || '', cantidad: 1, precio_unitario: precioSugerido[modelos[0]?.id] || 0 }])
   const [guardadoId, setGuardadoId] = useState(null)
+  const [modeloEditor, setModeloEditor] = useState(false)
 
   const setItem = (i, patch) => setItems(items.map((it, j) => (j === i ? { ...it, ...patch } : it)))
   const addItem = () => { const mid = modelos[0]?.id || ''; setItems([...items, { modelo_id: mid, cantidad: 1, precio_unitario: precioSugerido[mid] || 0 }]) }
@@ -109,10 +111,18 @@ export default function Cotizacion() {
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between mt-2">
-            <Button size="sm" variant="subtle" onClick={addItem}>+ Agregar renglón</Button>
+          <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+            <div className="flex gap-2">
+              <Button size="sm" variant="subtle" onClick={addItem}>+ Agregar renglón</Button>
+              <Button size="sm" variant="ghost" onClick={() => setModeloEditor(true)}>+ Modelo nuevo</Button>
+            </div>
             <span className="text-xs text-ink/45">Precio sugerido automático (editable) según último costeo o margen 80%.</span>
           </div>
+          {modeloEditor && (
+            <div className="mt-3">
+              <ModeloEditor onDone={() => setModeloEditor(false)} onCancel={() => setModeloEditor(false)} />
+            </div>
+          )}
           <Field label="Notas / condiciones" className="mt-4"><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Vigencia, tiempo de entrega, anticipo…" /></Field>
         </Card>
 

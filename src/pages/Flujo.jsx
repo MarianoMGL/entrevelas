@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Card, Button, Badge, Input, Select, Field, Toggle, Checkbox, Textarea } from '../components/ui'
 import { BlendEditor, ColorEditor } from '../components/RecetaEditors'
+import CatalogField from '../components/CatalogField'
 import FlameProgress, { PASOS } from '../components/FlameProgress'
 import {
   mxn, num, precioPorUnidad, costoBlendPorGr, blendGramos, ceraTotalLote,
@@ -438,11 +439,7 @@ function Paso3({ orden, modelo, savePaso, avanzar, insumosById, consumirInsumo, 
   return (
     <PasoCard paso={3} titulo="Preparación del aroma" onComplete={completar} completeLabel="Aroma listo" canComplete={!!frag}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Fragancia a usar">
-          <Select value={insumoId} onChange={(e) => setInsumoId(e.target.value)}>
-            {fragancias.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
-          </Select>
-        </Field>
+        <CatalogField kind="fragancia" label="Fragancia a usar" value={insumoId} onChange={(id) => { setInsumoId(id); savePaso('paso3', { insumo_id: id }) }} />
         <Field label={`% de fragancia: ${pct}%`} hint="Rango recomendado 6–12%">
           <input type="range" min="6" max="12" step="0.5" value={pct} onChange={(e) => { setPct(e.target.value) }} onMouseUp={() => persist({})} className="w-full accent-amber" />
         </Field>
@@ -490,11 +487,7 @@ function Paso4({ orden, savePaso, avanzar, db }) {
         <Field label="Humedad (%)"><Input type="number" value={f.humedad} onChange={(e) => upd({ humedad: e.target.value })} placeholder="58" /></Field>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Pabilo a usar">
-          <Select value={f.pabilo_id} onChange={(e) => upd({ pabilo_id: e.target.value })}>
-            {pabilos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </Select>
-        </Field>
+        <CatalogField kind="pabilo" label="Pabilo a usar" value={f.pabilo_id} onChange={(id) => upd({ pabilo_id: id })} />
         <div className="flex flex-col justify-end gap-3 pb-1">
           <Checkbox checked={f.moldes_listos} onChange={(v) => upd({ moldes_listos: v })} label="✓ Moldes limpios y listos" />
           <Checkbox checked={f.pabilo_colocado} onChange={(v) => upd({ pabilo_colocado: v })} label="✓ Pabilos colocados" />

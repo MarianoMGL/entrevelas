@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useStore } from '../lib/store'
 import { Card, SectionTitle, Button, Input, Select, Field, Stat, EmptyState } from '../components/ui'
+import CatalogField from '../components/CatalogField'
 import { mxn, num, fmtFecha } from '../lib/calc'
 import { exportXLSX, downloadCSV, rowsToCSV } from '../lib/exportar'
 
@@ -57,12 +58,7 @@ export default function Ingresos() {
       <Card className="p-4 mb-4">
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
           <Field label="Fecha"><Input type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} /></Field>
-          <Field label="Modelo" className="md:col-span-2">
-            <Select value={form.modelo_id} onChange={(e) => setForm({ ...form, modelo_id: e.target.value })}>
-              <option value="">Selecciona…</option>
-              {modelos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-            </Select>
-          </Field>
+          <CatalogField kind="modelo" label="Modelo" className="md:col-span-2" placeholder="Selecciona…" value={form.modelo_id} onChange={(id) => setForm({ ...form, modelo_id: id })} />
           <Field label="Cantidad"><Input type="number" value={form.cantidad} onChange={(e) => setForm({ ...form, cantidad: e.target.value })} /></Field>
           <Field label="Precio unit. ($)"><Input type="number" value={form.precio_unitario} onChange={(e) => setForm({ ...form, precio_unitario: e.target.value })} /></Field>
           <Button variant="amber" onClick={agregar} disabled={!form.modelo_id}>+ Agregar</Button>

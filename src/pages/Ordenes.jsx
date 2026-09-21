@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Card, SectionTitle, Button, Badge, Input, Select, Field, Toggle, Textarea, EmptyState } from '../components/ui'
+import CatalogField from '../components/CatalogField'
 import { fmtFecha, mxn } from '../lib/calc'
 import { PASOS } from '../components/FlameProgress'
 
@@ -69,12 +70,7 @@ export default function Ordenes() {
             <h3 className="font-display text-lg text-coffee">Nueva orden · {nextOrderNumber()}</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <Field label="Modelo a producir" className="col-span-2 md:col-span-1">
-              <Select value={form.modelo_id} onChange={(e) => setForm({ ...form, modelo_id: e.target.value })}>
-                <option value="">Selecciona…</option>
-                {modelos.filter((m) => m.activo).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-              </Select>
-            </Field>
+            <CatalogField kind="modelo" label="Modelo a producir" className="col-span-2 md:col-span-1" placeholder="Selecciona…" value={form.modelo_id} onChange={(id) => setForm({ ...form, modelo_id: id })} />
             <Field label="Cantidad de piezas"><Input type="number" value={form.piezas} onChange={(e) => setForm({ ...form, piezas: e.target.value })} /></Field>
             <Field label="Quién elabora">
               <Select value={form.elaboro} onChange={(e) => setForm({ ...form, elaboro: e.target.value })}>

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useStore } from '../lib/store'
 import { Card, SectionTitle, Button, Badge, Input, Select, Field, Checkbox } from '../components/ui'
+import CatalogField from '../components/CatalogField'
 import { Donut } from '../components/charts'
 import { mxn, num, conIva, costearModelo, precioConMargen } from '../lib/calc'
 
@@ -96,35 +97,15 @@ export default function Costeo() {
         <Card className="p-5">
           <h3 className="font-display text-lg text-coffee mb-3">Configuración del costeo</h3>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Modelo">
-              <Select value={modeloId} onChange={(e) => setModeloId(e.target.value)}>
-                {modelos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-              </Select>
-            </Field>
+            <CatalogField kind="modelo" label="Modelo" value={modeloId} onChange={setModeloId} />
             <Field label="Tamaño del lote (piezas)"><Input type="number" value={lote} onChange={(e) => setLote(e.target.value)} /></Field>
-            <Field label="Blend">
-              <Select value={blendId} onChange={(e) => setBlendId(e.target.value)}>
-                {blends.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-              </Select>
-            </Field>
-            <Field label="Color">
-              <Select value={colorId} onChange={(e) => setColorId(e.target.value)}>
-                {colores.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>)}
-              </Select>
-            </Field>
-            <Field label="Fragancia">
-              <Select value={fragId} onChange={(e) => setFragId(e.target.value)}>
-                {fragancias.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
-              </Select>
-            </Field>
+            <CatalogField kind="blend" label="Blend" value={blendId} onChange={setBlendId} />
+            <CatalogField kind="color" label="Color" value={colorId} onChange={setColorId} />
+            <CatalogField kind="fragancia" label="Fragancia" value={fragId} onChange={setFragId} />
             <Field label={`% Fragancia: ${fragPct}%`}>
               <input type="range" min="6" max="12" step="0.5" value={fragPct} onChange={(e) => setFragPct(e.target.value)} className="w-full accent-amber" />
             </Field>
-            <Field label="Pabilo" className="col-span-2">
-              <Select value={pabiloId} onChange={(e) => setPabiloId(e.target.value)}>
-                {pabilosList.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-              </Select>
-            </Field>
+            <CatalogField kind="pabilo" label="Pabilo" value={pabiloId} onChange={setPabiloId} className="col-span-2" />
           </div>
           <div className="mt-3">
             <span className="block text-xs font-semibold text-ink/60 mb-2 uppercase tracking-wide">Empaque</span>
